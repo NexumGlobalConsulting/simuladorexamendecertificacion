@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simulador Examen OECE - NEXUM</title>
+    <style>
+        :root {
+            --primary: #004a99;
+            --secondary: #6c757d;
+            --success: #28a745;
+            --bg: #f8f9fa;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: #333; line-height: 1.6; margin: 0; padding: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        .header { text-align: center; padding: 2rem 0; border-bottom: 3px solid var(--primary); margin-bottom: 30px; }
+        .question-card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; transition: transform 0.2s; }
+        .question-card:hover { transform: translateY(-2px); }
+        .meta-info { font-size: 0.85rem; color: var(--secondary); margin-bottom: 10px; display: block; text-transform: uppercase; letter-spacing: 1px; }
+        h3 { margin-top: 10px; color: #1a1a1a; }
+        .options-grid { display: grid; gap: 12px; margin-top: 20px; }
+        .option-label { 
+            display: flex; align-items: center; padding: 15px; background: #fff; border: 2px solid #e9ecef; 
+            border-radius: 8px; cursor: pointer; transition: all 0.2s; 
+        }
+        .option-label:hover { border-color: var(--primary); background: #f0f7ff; }
+        input[type="radio"] { margin-right: 15px; transform: scale(1.2); }
+        .btn-submit { 
+            background: var(--primary); color: white; border: none; padding: 18px 30px; 
+            font-size: 1.1rem; font-weight: bold; border-radius: 8px; cursor: pointer; 
+            width: 100%; margin: 30px 0; display: none; 
+        }
+        .btn-submit:hover { background: #003366; }
+        #results { 
+            display: none; background: white; padding: 30px; border-radius: 12px; 
+            border-left: 8px solid var(--success); margin-top: 30px; box-shadow: 0 10px 20px rgba(0,0,0,0.1); 
+        }
+        .score-box { font-size: 2rem; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Simulador Examen OECE</h1>
+            <p>NEXUM Global Consulting - Especialistas en Gestión Pública</p>
+        </div>
+
+        <div id="quiz-container">
+            <p style="text-align: center;">Iniciando Engine Central...</p>
+        </div>
+
+        <button id="submit-btn" class="btn-submit" onclick="submitExam()">Finalizar y Evaluar Examen</button>
+
+        <div id="results"></div>
+    </div>
+
+    <script>
+        let questionData = [];
+
+        async function loadQuestions() {
+            try {
+                const response = await fetch('/api/questions');
+                if (!response.ok) throw new Error('Error en la API');
+                
+                questionData = await response.json();
+                const container = document.getElementById('quiz-container');
+                container.innerHTML = ''; 
+
+                questionData.forEach((q, index) => {
+                    const card = document.createElement('div');
+                    card.className = 'question-card';
+                    card.innerHTML = `
+                        <span class="meta-info">Cod: ${q.id} | Tema: ${q.tema} | Peso: ${q.peso} pts</span>
+                        <h3>${index + 1}. ${q.enunciado}</h3>
+                        <div class="options-grid">
+                            ${Object.entries(q.opciones).map(([key, text]) => `
+                                <label class="option-label">
+                                    <input type="radio" name="q${index}" value="${key}">
+                                    <strong>${key})</strong> &nbsp; ${text}
+                                </label>
+                            `).join('')}
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+
+                document.getElementById('submit-btn').style.display = 'block';
+            } catch (error) {
+                document.getElementById('quiz-container').innerHTML = 
+                    `<p style="color:red; text-align:center;">Error: No se pudo conectar con el servidor de evaluación.</p>`;
+            }
+        }
+
+        async function submitExam() {
+            const answers = [];
+            for (let i = 0; i < questionData.length; i++) {
+                const selected = document.querySelector(`input[name="q${i}"]:checked`);
+                answers.push(selected ? selected.value : null);
+            }
+
+            try {
+                const response = await fetch('/api/submit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ answers })
+                });
+                
+                const result = await response.json();
+                displayResults(result);
+            } catch (error) {
+                alert("Error al procesar la calificación.");
+            }
+        }
+
+        function displayResults(result) {
+            const resultDiv = document.getElementById('results');
+            resultDiv.style.display = 'block';
+            resultDiv.innerHTML = `
+                <h2 style="margin-top:0;">Reporte de Calificación</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <div class="score-box">${result.score_obtenido} / ${result.score_maximo}</div>
+                        <p>Puntos totales acumulados</p>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="font-size: 1.5rem; color: var(--success); font-weight: bold;">${result.porcentaje}</span>
+                        <p>Efectividad</p>
+                    </div>
+                </div>
+                <hr>
+                <p><strong>Aciertos:</strong> ${result.respuestas_correctas} de ${result.total_preguntas} preguntas.</p>
+                <p style="font-size: 0.9rem; color: #666;"><em>Consulte el log técnico para el detalle normativo por pregunta.</em></p>
+                <button onclick="location.reload()" style="background:#6c757d; margin-top:20px;" class="btn-submit">Reintentar</button>
+            `;
+            document.getElementById('submit-btn').style.display = 'none';
+            document.getElementById('quiz-container').style.opacity = '0.5';
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        window.onload = loadQuestions;
+    </script>
+</body>
+</html>
