@@ -121,6 +121,7 @@ let answers = [];
 let totalTime = 15 // debe ser 120 minutos en segundos
 let timerInterval;
 
+
 function openTimeUpModal() {
     document.getElementById("timeout-modal").style.display = "flex";
 
@@ -129,6 +130,77 @@ function openTimeUpModal() {
     }, 2000);
 }
 
+function generarAnalisis() {
+
+    const stats = {};
+
+    questionData.forEach((q, i) => {
+        const tema = q.tema;
+
+        if (!stats[tema]) {
+            stats[tema] = {
+                total: 0,
+                correctas: 0
+            };
+        }
+
+        stats[tema].total++;
+
+        if (answers[i] === q.respuesta_correcta) {
+            stats[tema].correctas++;
+        }
+    });
+
+    return stats;
+}
+
+function renderAnalisis(stats) {
+
+    return Object.entries(stats).map(([tema, data]) => {
+
+        const porcentaje = Math.round((data.correctas / data.total) * 100);
+
+        let nivel = "🔴 Bajo";
+        if (porcentaje >= 70) nivel = "🟢 Alto";
+        else if (porcentaje >= 50) nivel = "🟡 Medio";
+
+        return `
+            <div style="margin-top:10px;">
+                <strong>${tema}</strong><br>
+                ${data.correctas}/${data.total} correctas (${porcentaje}%) — ${nivel}
+            </div>
+        `;
+    }).join('');
+}
+
+function generarRecomendacion(stats) {
+
+    const debiles = [];
+    const medias = [];
+
+    Object.entries(stats).forEach(([tema, data]) => {
+        const porcentaje = (data.correctas / data.total) * 100;
+
+        if (porcentaje < 50) debiles.push(tema);
+        else if (porcentaje < 70) medias.push(tema);
+    });
+
+    let mensaje = "";
+
+    if (debiles.length > 0) {
+        mensaje += `🔴 Debes reforzar: ${debiles.join(", ")}.<br>`;
+    }
+
+    if (medias.length > 0) {
+        mensaje += `🟡 Puedes mejorar en: ${medias.join(", ")}.`;
+    }
+
+    if (mensaje === "") {
+        mensaje = "🟢 Buen desempeño general. Puedes avanzar a nivel superior.";
+    }
+
+    return mensaje;
+}
     // ===============================
 // 🧠 CONTROL DE FINALIZACIÓN
 // ===============================
@@ -311,6 +383,9 @@ async function submitExam() {
 // ===============================
 function displayResults(result) {
     const resultDiv = document.getElementById('results');
+    const stats = generarAnalisis();
+    const analisisHTML = renderAnalisis(stats);
+    const recomendacion = generarRecomendacion(stats);
     resultDiv.style.display = 'block';
 
     resultDiv.innerHTML = `
@@ -319,6 +394,12 @@ function displayResults(result) {
         <p>${result.porcentaje} de acierto</p>
         <p>${result.respuestas_correctas} correctas de ${result.total_preguntas}</p>
 
+        <h3>Análisis por tema</h3>
+        ${analisisHTML}
+        
+        <h3>Recomendación</h3>
+        <p>${recomendacion}</p>
+        
         <p style="font-size:12px; color:gray;">
         Resultado referencial. No constituye certificación oficial OECE.
         </p>
