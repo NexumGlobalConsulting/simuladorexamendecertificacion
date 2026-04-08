@@ -6,7 +6,7 @@ import fs from "fs";
 
 import { questions } from "./modules/knowledge/questions.js";
 import { evaluateSession } from "./modules/engine/evaluate.js";
-import { populateFullBank } from "./modules/ai_generator/orchestrator.js";
+// import { populateFullBank } from "./modules/ai_generator/orchestrator.js";
 
 const app = express();
 
@@ -44,15 +44,15 @@ app.get("/", (req, res) => {
 });
 
 // Endpoint de administración para regenerar el banco
-app.post("/api/admin/generate-bank", async (req, res) => {
-    try {
-        const newBank = await populateFullBank();
-        res.json({ message: "Banco generado con éxito", total: newBank.length });
-    } catch (error) {
-        res.status(500).json({ error: "Fallo en la generación dinámica" });
-    }
-});
-
+// app.post("/api/admin/generate-bank", async (req, res) => {
+//     try {
+//         const newBank = await populateFullBank();
+//         res.json({ message: "Banco generado con éxito", total: newBank.length });
+//     } catch (error) {
+//         res.status(500).json({ error: "Fallo en la generación dinámica" });
+//     }
+// });
+// 
 // 📚 API: Obtener blueprint de preguntas (Seguro)
 app.get("/api/questions", (req, res) => {
     const safeQuestions = questions.map(q => ({
