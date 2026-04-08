@@ -6,6 +6,7 @@ import fs from "fs";
 
 import { questions } from "./modules/knowledge/questions.js";
 import { evaluateSession } from "./modules/engine/evaluate.js";
+import { populateFullBank } from "./modules/ai_generator/orchestrator.js";
 
 const app = express();
 
@@ -39,6 +40,16 @@ app.get("/", (req, res) => {
         res.sendFile(htmlPath);
     } else {
         res.status(404).send("Error: index.html no encontrado.");
+    }
+});
+
+// Endpoint de administración para regenerar el banco
+app.post("/api/admin/generate-bank", async (req, res) => {
+    try {
+        const newBank = await populateFullBank();
+        res.json({ message: "Banco generado con éxito", total: newBank.length });
+    } catch (error) {
+        res.status(500).json({ error: "Fallo en la generación dinámica" });
     }
 });
 
