@@ -378,6 +378,35 @@ async function submitExam() {
     }
 }
 
+function obtenerErrores() {
+    return questionData.map((q, i) => {
+        return {
+            ...q,
+            respuesta_usuario: answers[i],
+            es_correcta: answers[i] === q.respuesta_correcta
+        };
+    }).filter(q => !q.es_correcta);
+}
+
+function renderFeedback(errores) {
+
+    if (errores.length === 0) {
+        return "<p>🎉 Excelente, no tienes errores.</p>";
+    }
+
+    return errores.map(q => `
+        <div style="margin-top:15px; padding:10px; border:1px solid #ddd; border-radius:8px;">
+            <strong>${q.tema}</strong><br>
+            ${q.enunciado}<br><br>
+
+            ❌ Tu respuesta: ${q.respuesta_usuario || "No respondida"}<br>
+            ✅ Correcta: ${q.respuesta_correcta}<br>
+
+            <em>${q.explicacion || "Sin explicación disponible"}</em>
+        </div>
+    `).join('');
+}
+
 // ===============================
 // 📊 RESULTADOS (SIN CAMBIOS)
 // ===============================
@@ -386,6 +415,8 @@ function displayResults(result) {
     const stats = generarAnalisis();
     const analisisHTML = renderAnalisis(stats);
     const recomendacion = generarRecomendacion(stats);
+    const errores = obtenerErrores();
+    const feedbackHTML = renderFeedback(errores);
     resultDiv.style.display = 'block';
 
     resultDiv.innerHTML = `
@@ -399,6 +430,9 @@ function displayResults(result) {
         
         <h3>Recomendación</h3>
         <p>${recomendacion}</p>
+        
+        <h3>Retroalimentación</h3>
+        ${feedbackHTML}
         
         <p style="font-size:12px; color:gray;">
         Resultado referencial. No constituye certificación oficial OECE.
