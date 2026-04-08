@@ -1,64 +1,83 @@
-import 'dotenv/config';
+import fs from "fs";
 
-/**
- * PROJECT: NEXUM Simulation Engine
- * MILESTONE: AI-INTEGRATION-V2 (Clean Boot)
- * DESCRIPTION: Inference Engine for dynamic question generation based on Law 32069.
- * STATUS: Validated - Ready for mass population.
- */
-
-/**
- * Inference Engine Core - NEXUM (V2: Arranque Limpio)
- * Genera preguntas de alta fidelidad basadas exclusivamente en la Ley 32069.
- * Este módulo actúa como el filtro final contra normativa derogada.
- */
 export async function generateNEXUMQuestion(topic, competency, level, contextText) {
+
     const API_KEY = process.env.GROQ_API_KEY;
     const API_URL = "https://api.groq.com/openai/v1/chat/completions";
 
     if (!API_KEY) {
-        console.error("❌ ERROR: No se detecta GROQ_API_KEY en el archivo .env");
+        console.error("❌ ERROR: GROQ_API_KEY no encontrada");
         return null;
     }
 
-    const systemPrompt = `Actúa como el Auditor Maestro de NEXUM, experto en la NUEVA Ley N° 32069 (2025) y su Reglamento (DS 009-2025-EF). 
-    
-    🚫 FILTRO DE VIGENCIA (PROHIBICIONES ESTRICTAS):
-    1. PROHIBIDO mencionar la Ley 30225 o sus procesos (Adjudicación Simplificada, Selección de Consultores Individuales).
-    2. PROHIBIDO usar umbrales antiguos (como las 65 UIT para el Tribunal). El umbral vigente para apelaciones ante el Tribunal es SUPERIOR a 50 UIT.
-    3. PROHIBIDO usar el término "Valor Referencial" para bienes y servicios; usa "Cuantía" según el nuevo estándar del Sistema Nacional de Abastecimiento.
+    // ===============================
+    // 🧠 RAG NEXUM PRO (RETRIEVER)
+    // ===============================
+    function obtenerContexto(query) {
+        try {
+            const texto = fs.readFileSync("./data/normativa.txt", "utf-8");
 
-    🎯 PROTOCOLO DE CONSTRUCCIÓN NEXUM:
-    - Enunciado: Plantea un conflicto de gestión pública que requiera interpretar la norma vigente, no solo recordarla.
-    - Opciones: Crea distractores que parezcan correctos bajo la lógica de la ley antigua (prejuicio del usuario) pero que sean erróneos bajo la 32069.
-    - Clasificación de Errores: Debes identificar si el error del distractor es por Plazo Alterado, Requisito Inexistente o Aplicación Indebida.
+            const fragmentos = texto.split("\n");
 
-    Genera un objeto JSON con esta estructura exacta:
-    {
-        "id": "TEMP",
-        "competencia": ${competency},
-        "subcompetencia": "Referencia específica al Temario OECE (ej. 1.2.3)",
-        "tema": "${topic}",
-        "level": "${level}",
-        "enunciado": "Escenario práctico detallado...",
-        "opciones": {
-            "A": "...",
-            "B": "...",
-            "C": "...",
-            "D": "..."
-        },
-        "respuesta_correcta": "Letra",
-        "sustento_normativo": "Artículo exacto de la Ley 32069 o DS 009-2025-EF",
-        "explicacion": "Análisis técnico profundo justificando la respuesta correcta y refutando los distractores.",
-        "tipo_error_distractores": {
-            "A": "tipo de error o 'Correcta'",
-            "B": "tipo de error o 'Correcta'",
-            "C": "tipo de error o 'Correcta'",
-            "D": "tipo de error o 'Correcta'"
-        },
-        "peso": ${level === 'experto' ? 3 : level === 'intermedio' ? 2 : 1},
-        "estado": "en revisión"
-    }`;
+            const relevantes = fragmentos.filter(f =>
+                f.toLowerCase().includes(query.toLowerCase())
+            );
+
+            return relevantes.slice(0, 8).join("\n");
+        } catch (e) {
+            console.error("⚠️ No se pudo leer normativa.txt");
+            return "";
+        }
+    }
+
+    const contextoLegal = obtenerContexto(topic);
+
+    // ===============================
+    // 🔥 PROMPT NEXUM PRO (CONTROL TOTAL)
+    // ===============================
+    const systemPrompt = `
+Eres el Auditor Maestro de NEXUM.
+
+⚠️ SISTEMA CONTROLADO:
+Debes generar contenido SOLO usando el contexto proporcionado por el usuario.
+
+🚫 PROHIBIDO:
+- Usar conocimiento externo
+- Inventar normativa
+- Mencionar Unión Europea, REACH, química u otros dominios
+- Usar Ley 30225 o normativa derogada
+
+📚 MARCO LEGAL:
+Ley 32069 (2025) y DS 009-2025-EF
+
+🎯 TAREA:
+Generar UNA pregunta tipo examen OECE.
+
+⚠️ REGLAS CRÍTICAS:
+- Si el contexto no contiene suficiente información → responde null
+- Si usas información fuera del contexto → respuesta inválida
+- Responde SOLO JSON válido
+- No agregues texto adicional
+
+Estructura EXACTA:
+
+{
+  "id": "TEMP",
+  "competencia": "${competency}",
+  "tema": "${topic}",
+  "nivel": "${level}",
+  "enunciado": "...",
+  "opciones": {
+    "A": "...",
+    "B": "...",
+    "C": "...",
+    "D": "..."
+  },
+  "respuesta_correcta": "A",
+  "sustento_normativo": "...",
+  "explicacion": "..."
+}
+`;
 
     try {
         const response = await fetch(API_URL, {
@@ -68,20 +87,82 @@ export async function generateNEXUMQuestion(topic, competency, level, contextTex
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "llama3-70b-8192",
+                model: "llama-3.1-8b-instant",
                 messages: [
                     { role: "system", content: systemPrompt },
-                    { role: "user", content: `Genera una pregunta nivel ${level} sobre el tema: ${topic}. \n\nCONTEXTO LEGAL EXCLUSIVO EXTRAÍDO DEL PDF: ${contextText}` }
+                    {
+                        role: "user",
+                        content: `
+Genera una pregunta sobre: ${topic}
+
+Contexto normativo:
+${contextoLegal}
+
+Instrucción:
+Usa SOLO el contexto.
+Si no es suficiente → null
+`
+                    }
                 ],
-                temperature: 0.0, // Cero creatividad para evitar alucinaciones normativas
-                response_format: { type: "json_object" }
+                temperature: 0.0
             })
         });
 
         const data = await response.json();
-        return JSON.parse(data.choices[0].message.content);
+
+        if (data.error) {
+            console.error("⚠️ Error API:", data.error.message);
+            return null;
+        }
+
+        const content = data?.choices?.[0]?.message?.content;
+
+        if (!content) {
+            console.error("⚠️ Respuesta vacía");
+            return null;
+        }
+
+        // ===============================
+        // 🛡️ PARSE + VALIDADOR NEXUM
+        // ===============================
+        let parsed;
+
+        try {
+            parsed = JSON.parse(content);
+        } catch (err) {
+            console.error("❌ JSON inválido");
+            console.log("🔍 RAW:", content);
+            return null;
+        }
+
+        // Validación estructural
+        if (
+            !parsed ||
+            !parsed.enunciado ||
+            !parsed.opciones ||
+            !parsed.respuesta_correcta
+        ) {
+            console.error("❌ Estructura inválida");
+            return null;
+        }
+
+        // 🔒 Filtro anti-contaminación
+        const texto = JSON.stringify(parsed).toLowerCase();
+
+        if (
+            texto.includes("unión europea") ||
+            texto.includes("reach") ||
+            texto.includes("química") ||
+            texto.includes("planta")
+        ) {
+            console.error("❌ Contenido fuera de dominio");
+            return null;
+        }
+
+        return parsed;
+
     } catch (error) {
-        console.error("❌ Error Crítico en el Motor de Inferencia:", error);
+        console.error("❌ Error crítico:", error.message);
         return null;
     }
 }
