@@ -96,7 +96,7 @@
 let questionData = [];
 let currentIndex = 0;
 let answers = [];
-let totalTime = 120 * 60; // 120 minutos en segundos
+let totalTime = 15 // debe ser 120 minutos en segundos
 let timerInterval;
 
     // ===============================
@@ -136,6 +136,8 @@ async function loadQuestions() {
         renderNavigation();
 
         document.getElementById('submit-btn').style.display = 'none';
+
+        startTimer(); // 👈 ESTA ES LA CLAVE
 
     } catch (error) {
         document.getElementById('quiz-container').innerHTML =
@@ -296,6 +298,24 @@ function displayResults(result) {
 
     document.getElementById('submit-btn').style.display = 'none';
     document.getElementById('quiz-container').style.opacity = '0.5';
+}
+function startTimer() {
+    timerInterval = setInterval(() => {
+
+        const minutes = Math.floor(totalTime / 60);
+        const seconds = totalTime % 60;
+
+        document.getElementById("timer").innerText =
+            `Tiempo restante: ${minutes}:${seconds.toString().padStart(2,'0')}`;
+
+        totalTime--;
+
+        if (totalTime < 0) {
+            clearInterval(timerInterval);
+            submitExam(); // mantenemos simple por ahora
+        }
+
+    }, 1000);
 }
 
 // ===============================
