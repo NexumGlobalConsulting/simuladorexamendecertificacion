@@ -105,13 +105,14 @@
         <div id="quiz-container">
             <p style="text-align: center;">Iniciando Engine Central...</p>
         </div>
+        <div id="results" style="display:none; margin-top:20px;"></div>
         <button id="finish-btn" onclick="openFinishModal()" style="margin-top:20px;">
   Finalizar examen
         </button>
         
         <button id="submit-btn" class="btn-submit" onclick="submitExam()">Finalizar y Evaluar Examen</button>
 
-        <div id="results"></div>
+        <div id="results" style="display:none; margin-top:20px;"></div>
     </div>
 
     <script>
@@ -126,8 +127,64 @@ function openTimeUpModal() {
     document.getElementById("timeout-modal").style.display = "flex";
 
     setTimeout(() => {
-        openTimeUpModal();
+        submitExam(); // ✅ correcto
     }, 2000);
+}
+
+function generarStatsSubcompetencia() {
+
+    const stats = {};
+
+    questionData.forEach((q, i) => {
+
+        const key = `C${q.competencia}.${q.subcompetencia} - ${q.tema}`;
+
+        if (!stats[key]) {
+            stats[key] = { total: 0, correctas: 0 };
+        }
+
+        stats[key].total++;
+
+        if (answers[i] === q.respuesta_correcta) {
+            stats[key].correctas++;
+        }
+    });
+
+    return stats;
+}
+
+function diagnosticoGeneral(stats) {
+
+    const total = Object.values(stats).reduce((acc, s) => acc + s.total, 0);
+    const correctas = Object.values(stats).reduce((acc, s) => acc + s.correctas, 0);
+
+    const porcentaje = (correctas / total) * 100;
+
+    if (porcentaje >= 70) return "🟢 Dominio adecuado";
+    if (porcentaje >= 50) return "🟡 Nivel en desarrollo";
+    return "🔴 Nivel bajo, requiere refuerzo";
+}
+
+function diagnosticoPorSub(stats) {
+
+    return Object.entries(stats).map(([key, s]) => {
+
+        const p = (s.correctas / s.total) * 100;
+
+        let nivel = "🔴 Bajo";
+        if (p >= 70) nivel = "🟢 Alto";
+        else if (p >= 50) nivel = "🟡 Medio";
+
+        return `<p>${key}: ${Math.round(p)}% — ${nivel}</p>`;
+    }).join('');
+}
+
+function recomendacionPorSub(stats) {
+
+    return Object.entries(stats)
+        .filter(([_, s]) => (s.correctas / s.total) < 0.5)
+        .map(([key]) => `<li>${key}</li>`)
+        .join('');
 }
 
 function generarAnalisis() {
@@ -370,13 +427,20 @@ async function submitExam() {
             body: JSON.stringify({ answers })
         });
 
+        if (!response.ok) {
+            throw new Error("Error en servidor");
+        }
+
         const result = await response.json();
+
         displayResults(result);
 
     } catch (error) {
+        console.error(error);
         alert("Error al enviar examen");
     }
 }
+
 
 function obtenerErrores() {
     return questionData.map((q, i) => {
@@ -414,43 +478,71 @@ function renderFeedback(errores) {
     `).join('');
 }
 
+function generarReporteHTML() {
+
+    const statsSub = generarStatsSubcompetencia();
+    const statsTema = generarAnalisis();
+
+    const html = `
+        <h1>Reporte NEXUM</h1>
+
+        <h2>Diagnóstico general</h2>
+        <p>${diagnosticoGeneral(statsSub)}</p>
+
+        <h2>Diagnóstico por subcompetencia</h2>
+        ${diagnosticoPorSub(statsSub)}
+
+        <h2>Recomendación</h2>
+        <p>${generarRecomendacion(statsSub)}</p>
+
+        <h2>Detalle por temas</h2>
+        ${Object.entries(statsTema).map(([t, s]) => {
+            const p = Math.round((s.correctas / s.total) * 100);
+            return `<p>${t}: ${p}%</p>`;
+        }).join('')}
+    `;
+
+    const w = window.open();
+    w.document.write(html);
+    w.document.close();
+}
+
 // ===============================
 // 📊 RESULTADOS (SIN CAMBIOS)
 // ===============================
 function displayResults(result) {
+
     const resultDiv = document.getElementById('results');
-    const stats = generarAnalisis();
-    const analisisHTML = renderAnalisis(stats);
-    const recomendacion = generarRecomendacion(stats);
-    const errores = obtenerErrores();
-    const feedbackHTML = renderFeedback(errores);
-    resultDiv.style.display = 'block';
+    document.getElementById('quiz-container').style.display = "none";
+    const statsSub = generarStatsSubcompetencia();
+    const diagGeneral = diagnosticoGeneral(statsSub);
+    const diagSub = diagnosticoPorSub(statsSub);
+    const recSub = recomendacionPorSub(statsSub);
 
     resultDiv.innerHTML = `
         <h2>Resultados</h2>
-        <div class="score-box">${result.score_obtenido} / ${result.score_maximo}</div>
-        <p>${result.porcentaje} de acierto</p>
-        <p>${result.respuestas_correctas} correctas de ${result.total_preguntas}</p>
 
-        <h3>Análisis por tema</h3>
-        ${analisisHTML}
-        
-        <h3>Recomendación</h3>
-        <p>${recomendacion}</p>
-        
-        <h3>Retroalimentación</h3>
-        ${feedbackHTML}
+        <h3>${result.score_obtenido} / ${result.score_maximo}</h3>
 
-        <p style="font-size:12px; color:gray;">
-        Resultado referencial. No constituye certificación oficial OECE.
-        </p>
+        <h3>Diagnóstico general</h3>
+        <p>${diagGeneral}</p>
 
-        <button onclick="location.reload()">Reintentar</button>
+        <h3>Diagnóstico por subcompetencia</h3>
+        ${diagSub}
+
+        <h3>Recomendación general</h3>
+        <p>${generarRecomendacion(statsSub)}</p>
+
+        <h3>Recomendación por subcompetencia</h3>
+        <ul>${recSub}</ul>
+
+        <button onclick="generarReporteHTML()">📄 Generar reporte</button>
     `;
 
-    document.getElementById('submit-btn').style.display = 'none';
-    document.getElementById('quiz-container').style.opacity = '0.5';
+    // 👇 ESTA LÍNEA ES LA CLAVE
+    resultDiv.style.display = "block";
 }
+
 function startTimer() {
     timerInterval = setInterval(() => {
 
