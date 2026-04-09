@@ -110,9 +110,8 @@
   Finalizar examen
         </button>
         
-        <button id="submit-btn" class="btn-submit" onclick="submitExam()">Finalizar y Evaluar Examen</button>
+        <button id="submit-btn" class="btn-submit" onclick="openFinishModal()">Finalizar y Evaluar Examen</button>
 
-        <div id="results" style="display:none; margin-top:20px;"></div>
     </div>
 
     <script>
@@ -121,15 +120,18 @@ let currentIndex = 0;
 let answers = [];
 let totalTime = 15 // debe ser 120 minutos en segundos
 let timerInterval;
-
+let examFinished = false;
 
 function openTimeUpModal() {
+
     document.getElementById("timeout-modal").style.display = "flex";
 
     setTimeout(() => {
-        submitExam(); // ✅ correcto
+        submitExam().finally(() => {
+            document.getElementById("timeout-modal").style.display = "none";
+        });
     }, 2000);
-}
+} // 👈 ESTA LLAVE FALTABA
 
 function generarStatsSubcompetencia() {
 
@@ -277,7 +279,7 @@ function closeFinishModal() {
 
 function confirmSubmit() {
     closeFinishModal();
-    submitExam();
+    submitExam(); // ✅ envío directo
 }
 
 // ===============================
@@ -308,6 +310,7 @@ async function loadQuestions() {
 // 🧠 RENDER PREGUNTA (UNA SOLA)
 // ===============================
 function renderQuestion() {
+    
     const q = questionData[currentIndex];
     const container = document.getElementById('quiz-container');
 
@@ -322,16 +325,29 @@ function renderQuestion() {
             <h3>${q.enunciado}</h3>
 
             <div class="options-grid">
-                ${Object.entries(q.opciones).map(([key, text]) => `
-                    <label class="option-label">
-                        <input type="radio"
-                               name="question"
-                               value="${key}"
-                               ${answers[currentIndex] === key ? "checked" : ""}
-                               onchange="saveAnswer('${key}')">
-                        <strong>${key})</strong> &nbsp; ${text}
-                    </label>
-                `).join('')}
+                ${Object.entries(q.opciones).map(([key, val]) => `
+    <label style="
+        display:block;
+        padding:10px;
+        margin:5px 0;
+        border:1px solid #ddd;
+        border-radius:8px;
+        ${examFinished ? 'cursor:default;' : 'cursor:pointer;'}
+
+        ${examFinished && key === q.respuesta_correcta ? 'background:#d4edda;' : ''}
+        ${examFinished && answers[currentIndex] === key && key !== q.respuesta_correcta ? 'background:#f8d7da;' : ''}
+    ">
+        <input type="radio"
+            name="question"
+            value="${key}"
+            ${answers[currentIndex] === key ? 'checked' : ''}
+            ${examFinished ? 'disabled' : ''}
+            ${!examFinished ? `onchange="saveAnswer('${key}')"` : ''}
+        >
+        <strong>${key})</strong> ${val}
+    </label>
+`).join('')}
+
             </div>
 
             <div style="display:flex; justify-content:space-between; margin-top:20px;">
@@ -352,8 +368,11 @@ function renderQuestion() {
 // 💾 GUARDAR RESPUESTA
 // ===============================
 function saveAnswer(value) {
+
+    if (examFinished) return; // 🔴 BLOQUEO REAL
+
     answers[currentIndex] = value;
-    renderNavigation(); // actualiza colores
+    renderNavigation();
 }
 
 // ===============================
@@ -420,6 +439,9 @@ function goToQuestion(index) {
 // 📤 ENVÍO (SIN CAMBIOS BACKEND)
 // ===============================
 async function submitExam() {
+
+    if (examFinished) return;
+
     try {
         const response = await fetch('/api/submit', {
             method: 'POST',
@@ -427,11 +449,12 @@ async function submitExam() {
             body: JSON.stringify({ answers })
         });
 
-        if (!response.ok) {
-            throw new Error("Error en servidor");
-        }
+        if (!response.ok) throw new Error("Error servidor");
 
         const result = await response.json();
+
+        // 🔴 CERRAR MODAL
+        document.getElementById("timeout-modal").style.display = "none";
 
         displayResults(result);
 
@@ -511,9 +534,12 @@ function generarReporteHTML() {
 // 📊 RESULTADOS (SIN CAMBIOS)
 // ===============================
 function displayResults(result) {
-
+    
+    examFinished = true;
+    renderQuestion();
+    
     const resultDiv = document.getElementById('results');
-    document.getElementById('quiz-container').style.display = "none";
+    // modo revisión → no ocultar preguntas
     const statsSub = generarStatsSubcompetencia();
     const diagGeneral = diagnosticoGeneral(statsSub);
     const diagSub = diagnosticoPorSub(statsSub);
@@ -526,6 +552,10 @@ function displayResults(result) {
 
         <h3>Diagnóstico general</h3>
         <p>${diagGeneral}</p>
+
+        <p style="margin-top:15px; font-size:12px; color:gray;">
+        Resultado referencial con fines de autoevaluación. No constituye certificación oficial ni reemplaza los procesos del OECE.
+        </p>
 
         <h3>Diagnóstico por subcompetencia</h3>
         ${diagSub}
@@ -556,7 +586,7 @@ function startTimer() {
 
         if (totalTime < 0) {
             clearInterval(timerInterval);
-            submitExam(); // mantenemos simple por ahora
+            openTimeUpModal();
         }
 
     }, 1000);
