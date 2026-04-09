@@ -54,15 +54,8 @@ app.get("/", (req, res) => {
 // });
 // 
 // 📚 API: Obtener blueprint de preguntas (Seguro)
-app.get("/api/questions", (req, res) => {
-    const safeQuestions = questions.map(q => ({
-        id: q.id,
-        enunciado: q.enunciado,
-        opciones: q.opciones,
-        tema: q.tema,
-        peso: q.peso
-    }));
-    res.json(safeQuestions);
+app.get('/api/questions', (req, res) => {
+    res.json(questions);
 });
 
 // 🧠 API: Motor de Evaluación (Engine Central)

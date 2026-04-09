@@ -135,7 +135,7 @@ function generarAnalisis() {
     const stats = {};
 
     questionData.forEach((q, i) => {
-        const tema = q.tema;
+        const tema = `C${q.competencia} - ${q.tema}`;
 
         if (!stats[tema]) {
             stats[tema] = {
@@ -259,7 +259,7 @@ function renderQuestion() {
 
             <span class="meta-info">
                 Pregunta ${currentIndex + 1} de ${questionData.length} |
-                Tema: ${q.tema} | Peso: ${q.peso}
+                Tema: ${q.tema} | Nivel: ${q.nivel} | Peso: ${q.peso}
             </span>
 
             <h3>${q.enunciado}</h3>
@@ -381,7 +381,11 @@ async function submitExam() {
 function obtenerErrores() {
     return questionData.map((q, i) => {
         return {
-            ...q,
+            tema: q.tema,
+            enunciado: q.enunciado,
+            respuesta_correcta: q.respuesta_correcta,
+            explicacion: q.explicacion,
+            sustento_normativo: q.sustento_normativo, // 👈 CLAVE
             respuesta_usuario: answers[i],
             es_correcta: answers[i] === q.respuesta_correcta
         };
@@ -403,6 +407,9 @@ function renderFeedback(errores) {
             ✅ Correcta: ${q.respuesta_correcta}<br>
 
             <em>${q.explicacion || "Sin explicación disponible"}</em>
+            
+            📚 Sustento: ${q.sustento_normativo || "No disponible"}
+
         </div>
     `).join('');
 }
@@ -433,7 +440,7 @@ function displayResults(result) {
         
         <h3>Retroalimentación</h3>
         ${feedbackHTML}
-        
+
         <p style="font-size:12px; color:gray;">
         Resultado referencial. No constituye certificación oficial OECE.
         </p>
