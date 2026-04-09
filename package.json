@@ -1,10 +1,17 @@
 {
-  "name": "nexum-generator",
+  "name": "simulador",
   "version": "1.0.0",
   "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "node src/index.js"
+  },
   "dependencies": {
     "cors": "^2.8.6",
-    "dotenv": "^16.0.0",
+    "dotenv": "^17.4.1",
     "express": "^5.2.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.0.0"
   }
 }
