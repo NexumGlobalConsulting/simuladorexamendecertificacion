@@ -1,8 +1,10 @@
+import logger from "./utils/logger.js";
 import express from "express";
 import cors from "cors";
 import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs";
+import { errorHandler } from "./middleware/errorHandler.js";
 
 import { questions } from "./modules/knowledge/questions.js";
 import { evaluateSession } from "./modules/engine/evaluate.js";
@@ -70,8 +72,15 @@ app.post("/api/submit", (req, res) => {
     res.json(result);
 });
 
+app.get("/api/test-error", (req, res, next) => {
+  next(new Error("Error de prueba Nexum"));
+});
+
+// 👇 SIEMPRE AL FINAL DE RUTAS
+app.use(errorHandler);
+
 // 🚀 Servidor
 const PORT = 3000;
 app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[NEXUM] 🔥 Engine activo en: http://localhost:${PORT}`);
+  console.log(`[NEXUM] 🔥 Engine activo en: http://localhost:${PORT}`);
 });
